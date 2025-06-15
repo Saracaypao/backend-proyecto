@@ -16,8 +16,13 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
+    //Maneja peticion para logearse
     @PostMapping("/login")
     public ResponseEntity<UserResponseDTO> login(@RequestBody UserLoginDTO dto) {
-        return ResponseEntity.ok(authService.login(dto));
+        try {
+            return ResponseEntity.ok(authService.login(dto));
+        } catch (Exception e){
+            return ResponseEntity.badRequest().build();
+        }
     }
 }
