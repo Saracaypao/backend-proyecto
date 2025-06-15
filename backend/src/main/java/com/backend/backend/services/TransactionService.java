@@ -26,7 +26,7 @@ public class TransactionService {
 
     // Logica para crear una nueva transaccion
     public void createTransaction(TransactionDTO dto, String email) {
-        User user = userRepository.findByEmail(email).orElseThrow();
+        User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
         Category category = categoryRepository.findById(dto.getCategoryId()).orElseThrow();
 
         Transaction transaction = Transaction.builder()
@@ -44,7 +44,7 @@ public class TransactionService {
 
     // Busca al usuario por su email y devuelve todas sus transacciones
     public List<Transaction> getUserTransactions(String email) {
-        User user = userRepository.findByEmail(email).orElseThrow();
+        User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
         return transactionRepository.findByUserId(user.getId());
     }
 }

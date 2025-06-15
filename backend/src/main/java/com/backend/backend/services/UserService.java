@@ -18,7 +18,7 @@ public class UserService {
 
     // Logica para registrar un usuario
     public void registerUser(UserRegisterDTO dto) {
-        if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
+        if (userRepository.findByEmailIgnoreCase(dto.getEmail()).isPresent()) {
             throw new RuntimeException("This email is already in use");
         }
 

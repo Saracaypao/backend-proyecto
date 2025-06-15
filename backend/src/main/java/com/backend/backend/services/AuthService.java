@@ -28,7 +28,7 @@ public class AuthService {
 
     // Lógica para logear al usuario: valida el correo y la contraseña
     public UserResponseDTO login(UserLoginDTO dto) {
-        Optional<User> userOpt = userRepository.findByEmail(dto.getEmail());
+        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(dto.getEmail());
         if (userOpt.isEmpty()) {
             throw new RuntimeException("User not found");
         }

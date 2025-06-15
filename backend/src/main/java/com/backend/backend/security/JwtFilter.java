@@ -18,10 +18,10 @@ import java.io.IOException;
 import java.util.Collections;
 
 @Component
-@RequiredArgsConstructor
 public class JwtFilter extends OncePerRequestFilter {
 
     // Clase que se encarga de manejar el token JWT
+    @Autowired
     private JwtUtil jwtUtil;
 
     @Autowired
@@ -46,7 +46,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
         // Si no hay usuario ya autenticado, verifica el token y lo autentica
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            User user = userRepository.findByEmail(email).orElse(null);
+            User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
 
             // Si todo es valido, se establece el usuario como autenticado
             if (user != null && jwtUtil.validateToken(token)) {
