@@ -14,5 +14,5 @@ public interface TransactionRepository extends JpaRepository<Transaction, String
     List<Transaction> findByUserIdAndCategoryId(String userId, String CategoryId);
     List<Transaction> findByUserIdAndDate(String userId, LocalDate date);
     List<Transaction> findByUserIdAndCategoryIdAndDate(String userId, String CategoryId, LocalDate date);
-    List<Transaction> findByIsPublicTrue();
+    List<Transaction> findByUserIdAndType(String userId, Transaction.Type type);
 }

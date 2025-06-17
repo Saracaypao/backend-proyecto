@@ -55,15 +55,16 @@ public class TransactionController {
         }
     }
 
-    // Devuelve las transacciones filtradas por categoria y fecha
+    // Devuelve las transacciones filtradas por categoria, fecha y tipo
     @GetMapping("/filter")
     public ResponseEntity<List<Transaction>> filterTransactions(
             @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String date,
+            @RequestParam(required = false) Transaction.Type type,
             @AuthenticationPrincipal User user
     ) {
         try {
-            List<Transaction> filtered = transactionService.filterTransactions(user.getEmail(), categoryId, date);
+            List<Transaction> filtered = transactionService.filterTransactions(user.getEmail(), categoryId, date, type);
             return ResponseEntity.ok(filtered);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
@@ -76,6 +77,35 @@ public class TransactionController {
         try {
             TransactionDetailsDTO dto = transactionService.getTransactionByUser(id, user);
             return ResponseEntity.ok(dto);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    // Endpoint para editar transacción
+    @PutMapping("/{id}")
+    public ResponseEntity<Void> updateTransaction(
+            @PathVariable String id,
+            @RequestBody TransactionDTO dto,
+            @AuthenticationPrincipal User user
+    ) {
+        try {
+            transactionService.updateTransaction(id, dto, user.getEmail());
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    // Endpoint para eliminar transacción
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteTransaction(
+            @PathVariable String id,
+            @AuthenticationPrincipal User user
+    ) {
+        try {
+            transactionService.deleteTransaction(id, user.getEmail());
+            return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
