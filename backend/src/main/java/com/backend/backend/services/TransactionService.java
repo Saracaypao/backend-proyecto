@@ -1,9 +1,12 @@
 package com.backend.backend.services;
 
+import com.backend.backend.dto.AdviceCommentDTO;
 import com.backend.backend.dto.TransactionDTO;
+import com.backend.backend.dto.TransactionDetailsDTO;
 import com.backend.backend.entities.Category;
 import com.backend.backend.entities.Transaction;
 import com.backend.backend.entities.User;
+import com.backend.backend.repositories.AdviceCommentRepository;
 import com.backend.backend.repositories.CategoryRepository;
 import com.backend.backend.repositories.TransactionRepository;
 import com.backend.backend.repositories.UserRepository;
@@ -25,6 +28,10 @@ public class TransactionService {
 
     @Autowired
     private CategoryRepository categoryRepository;
+
+    @Autowired
+    private AdviceCommentRepository adviceCommentRepository;
+
 
     // Logica para crear una nueva transaccion
     public void createTransaction(TransactionDTO dto, String email) {
@@ -74,5 +81,38 @@ public class TransactionService {
         } else {
             return transactionRepository.findByUserId(user.getId());
         }
+    }
+
+    // Devuelve el detalle de una transaccion
+    public TransactionDetailsDTO getTransactionByUser(String id, User user) {
+        Transaction transaction = transactionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Transaction not found"));
+
+        if (!transaction.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Unauthorized access");
+        }
+
+        List<AdviceCommentDTO> comments = List.of();
+        // Solo se pueden comentar las transacciones publicas
+        if (transaction.isPublic()) {
+            comments = adviceCommentRepository.findByTransactionId(id)
+                    .stream()
+                    .map(comment -> AdviceCommentDTO.builder()
+                            .message(comment.getMessage())
+                            .timestamp(comment.getTimestamp())
+                            .advisorName(comment.getAdvisor().getFirstName() + " " + comment.getAdvisor().getLastName())
+                            .build())
+                    .toList();
+        }
+
+        return TransactionDetailsDTO.builder()
+                .id(transaction.getId())
+                .description(transaction.getDescription())
+                .date(transaction.getDate())
+                .amount(transaction.getAmount())
+                .type(transaction.getType().name())
+                .category(transaction.getCategory().getName())
+                .comments(comments)
+                .build();
     }
 }

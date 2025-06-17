@@ -2,6 +2,7 @@ package com.backend.backend.controllers;
 
 
 import com.backend.backend.dto.TransactionDTO;
+import com.backend.backend.dto.TransactionDetailsDTO;
 import com.backend.backend.entities.Transaction;
 import com.backend.backend.entities.User;
 import com.backend.backend.services.TransactionService;
@@ -64,6 +65,17 @@ public class TransactionController {
         try {
             List<Transaction> filtered = transactionService.filterTransactions(user.getEmail(), categoryId, date);
             return ResponseEntity.ok(filtered);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    // Obtener una transaccion por su id
+    @GetMapping("/{id}")
+    public ResponseEntity<TransactionDetailsDTO> getTransactionById(@PathVariable String id, @AuthenticationPrincipal User user) {
+        try {
+            TransactionDetailsDTO dto = transactionService.getTransactionByUser(id, user);
+            return ResponseEntity.ok(dto);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
