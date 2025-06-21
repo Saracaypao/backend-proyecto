@@ -221,4 +221,13 @@ public class TransactionService {
 
         return result;
     }
+
+    // Obtener transacciones por rango de fechas
+    public List<Transaction> getTransactionsByDateRange(String email, String startDate, String endDate) {
+        User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
+        LocalDate start = LocalDate.parse(startDate);
+        LocalDate end = LocalDate.parse(endDate);
+        
+        return transactionRepository.findByUserIdAndDateBetween(user.getId(), start, end);
+    }
 }

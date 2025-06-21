@@ -39,4 +39,15 @@ public class CategoryService {
         ).collect(Collectors.toList());
     }
 
+    // Logica que devuelve una categoria por ID
+    public CategoryResponseDTO findById(String id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Category not found"));
+        
+        return CategoryResponseDTO.builder()
+                .id(category.getId())
+                .name(category.getName())
+                .build();
+    }
+
 }

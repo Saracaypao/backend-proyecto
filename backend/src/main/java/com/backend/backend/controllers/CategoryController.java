@@ -36,4 +36,15 @@ public class CategoryController {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    // Maneja peticion para obtener una categoria por ID
+    @GetMapping("/{categoryId}")
+    public ResponseEntity<CategoryResponseDTO> getCategoryById(@PathVariable String categoryId) {
+        try {
+            CategoryResponseDTO category = categoryService.findById(categoryId);
+            return ResponseEntity.ok(category);
+        } catch (Exception e){
+            return ResponseEntity.notFound().build();
+        }
+    }
 }
