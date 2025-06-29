@@ -33,8 +33,6 @@ public class TransactionService {
     @Autowired
     private AdviceCommentRepository adviceCommentRepository;
 
-
-    // Logica para crear una nueva transaccion
     public void createTransaction(TransactionDTO dto, String email) {
         User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
         Category category = categoryRepository.findById(dto.getCategoryId()).orElseThrow();
@@ -52,7 +50,6 @@ public class TransactionService {
         transactionRepository.save(transaction);
     }
 
-    // Busca al usuario por su email y devuelve todas sus transacciones
     public List<Transaction> getUserTransactions(String email) {
         User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
         return transactionRepository.findByUserId(user.getId());
@@ -229,5 +226,10 @@ public class TransactionService {
         LocalDate end = LocalDate.parse(endDate);
         
         return transactionRepository.findByUserIdAndDateBetween(user.getId(), start, end);
+    }
+
+    // Obtener todas las transacciones públicas para asesores financieros
+    public List<Transaction> getPublicTransactions() {
+        return transactionRepository.findByIsPublicTrue();
     }
 }

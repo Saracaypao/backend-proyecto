@@ -43,7 +43,7 @@ public class AuthService {
                 .fullName(user.getFirstName() + " " + user.getLastName())
                 .email(user.getEmail())
                 .role(user.getRole().name())
-                .token(jwtUtil.generateToken(UUID.fromString(user.getId()), user.getEmail()))
+                .token(jwtUtil.generateToken(UUID.fromString(user.getId()), user.getEmail(), user.getRole().name()))
                 .build();
     }
 }

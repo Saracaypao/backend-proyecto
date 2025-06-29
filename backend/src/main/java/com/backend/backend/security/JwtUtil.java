@@ -28,6 +28,20 @@ public class JwtUtil {
         return Jwts.builder()
                 .setSubject(email)
                 .claim("userId", userId.toString())
+                .claim("email", email)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    // Genera un token JWT con el ID, correo y rol del usuario
+    public String generateToken(UUID userId, String email, String role) {
+        return Jwts.builder()
+                .setSubject(email)
+                .claim("userId", userId.toString())
+                .claim("email", email)
+                .claim("role", role)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(getSigningKey())
@@ -42,6 +56,11 @@ public class JwtUtil {
     // Extrae el ID del usuario desde el token
     public String extractUserId(String token) {
         return parseClaims(token).get("userId", String.class);
+    }
+
+    // Extrae el rol del usuario desde el token
+    public String extractRole(String token) {
+        return parseClaims(token).get("role", String.class);
     }
 
     // Verifica si el token es valido

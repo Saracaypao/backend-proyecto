@@ -8,7 +8,9 @@ import java.time.LocalDateTime;
 @Data
 @Builder
 public class AdviceCommentDTO {
+    private String id;
     private String message;
-    private String advisorName;
     private LocalDateTime timestamp;
+    private String advisorName;
+    private String transactionId;
 }

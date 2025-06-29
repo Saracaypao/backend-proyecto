@@ -50,4 +50,11 @@ public class CategoryService {
                 .build();
     }
 
+    // Logica para eliminar una categoria por ID
+    public void deleteCategory(String id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Category not found"));
+        
+        categoryRepository.delete(category);
+    }
 }

@@ -3,6 +3,7 @@ package com.backend.backend.controllers;
 
 import com.backend.backend.dto.TransactionDTO;
 import com.backend.backend.dto.TransactionDetailsDTO;
+import com.backend.backend.dto.TransactionResponseDTO;
 import com.backend.backend.entities.Transaction;
 import com.backend.backend.entities.User;
 import com.backend.backend.services.TransactionService;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 @RestController
@@ -24,29 +26,33 @@ public class TransactionController {
     @Autowired
     private TransactionService transactionService;
 
-    // Maneja peticion para crear una transaccion
     @PostMapping
     public ResponseEntity<Void> createTransaction(@RequestBody TransactionDTO dto, @AuthenticationPrincipal User user) {
         try {
             transactionService.createTransaction(dto, user.getEmail());
             return ResponseEntity.ok().build();
         } catch (Exception e){
+            e.printStackTrace();
             return ResponseEntity.badRequest().build();
         }
     }
 
-    // Devuelve las transacciones del usuario que esta logueado
     @GetMapping
-    public ResponseEntity<List<Transaction>> getMyTransactions(@AuthenticationPrincipal User user) {
+    public ResponseEntity<List<TransactionResponseDTO>> getMyTransactions(@AuthenticationPrincipal User user) {
         try {
             List<Transaction> transactions = transactionService.getUserTransactions(user.getEmail());
-            return ResponseEntity.ok(transactions);
+            
+            List<TransactionResponseDTO> responseDTOs = transactions.stream()
+                    .map(TransactionResponseDTO::fromTransaction)
+                    .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(responseDTOs);
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().build();
         }
     }
 
-    // Devuelve las ultimas 5 transacciones
     @GetMapping("/latest")
     public ResponseEntity<List<Transaction>> getLastTransaction(@AuthenticationPrincipal User user){
         try{
@@ -57,7 +63,6 @@ public class TransactionController {
         }
     }
 
-    // Devuelve las transacciones filtradas por categoria, fecha y tipo
     @GetMapping("/filter")
     public ResponseEntity<List<Transaction>> filterTransactions(
             @RequestParam(required = false) String categoryId,
@@ -73,7 +78,6 @@ public class TransactionController {
         }
     }
 
-    // Obtener una transaccion por su id
     @GetMapping("/{id}")
     public ResponseEntity<TransactionDetailsDTO> getTransactionById(@PathVariable String id, @AuthenticationPrincipal User user) {
         try {
@@ -84,7 +88,6 @@ public class TransactionController {
         }
     }
 
-    // Endpoint para editar transacción
     @PutMapping("/{id}")
     public ResponseEntity<Void> updateTransaction(
             @PathVariable String id,
@@ -99,7 +102,6 @@ public class TransactionController {
         }
     }
 
-    // Endpoint para eliminar transacción
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTransaction(
             @PathVariable String id,
@@ -113,7 +115,6 @@ public class TransactionController {
         }
     }
 
-    // Devuelve la suma de los ingresos y gastos del ultimo mes
     @GetMapping("/summary/current-month")
     public ResponseEntity<Map<String, Double>> getMonthlySummary(@AuthenticationPrincipal User user) {
         try {
@@ -124,13 +125,26 @@ public class TransactionController {
         }
     }
 
-    // Devuelve los ingresos y gastos de los ultimos 6 meses
     @GetMapping("/summary/last-6-months")
     public ResponseEntity<List<Map<String, Object>>> getMonthlyBreakdown(@AuthenticationPrincipal User user) {
         try {
             List<Map<String, Object>> data = transactionService.getSixMonthAnalytics(user);
             return ResponseEntity.ok(data);
         } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/public")
+    public ResponseEntity<List<TransactionResponseDTO>> getPublicTransactions() {
+        try {
+            List<Transaction> publicTransactions = transactionService.getPublicTransactions();
+            List<TransactionResponseDTO> responseDTOs = publicTransactions.stream()
+                    .map(TransactionResponseDTO::fromTransaction)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(responseDTOs);
+        } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.badRequest().build();
         }
     }

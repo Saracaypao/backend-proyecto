@@ -22,12 +22,20 @@ public class UserService {
             throw new RuntimeException("This email is already in use");
         }
 
+        // Validar y convertir el rol
+        User.Role role;
+        try {
+            role = User.Role.valueOf(dto.getRole().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid role. Must be 'USER' or 'ADVISOR'");
+        }
+
         User user = User.builder()
                 .firstName(dto.getFirstName())
                 .lastName(dto.getLastName())
                 .email(dto.getEmail())
                 .password(passwordEncoder.encode(dto.getPassword()))
-                .role(User.Role.USER)
+                .role(role)
                 .build();
 
         userRepository.save(user);

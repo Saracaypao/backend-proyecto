@@ -1,6 +1,7 @@
 package com.backend.backend.services;
 
 import com.backend.backend.dto.AdviceCommentRequestDTO;
+import com.backend.backend.dto.AdviceCommentDTO;
 import com.backend.backend.entities.AdviceComment;
 import com.backend.backend.entities.Transaction;
 import com.backend.backend.entities.User;
@@ -10,6 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class AdviceCommentService {
@@ -37,5 +40,20 @@ public class AdviceCommentService {
                 .build();
 
         adviceCommentRepository.save(comment);
+    }
+
+    // Obtener comentarios de una transacción específica
+    public List<AdviceCommentDTO> getCommentsByTransaction(String transactionId) {
+        List<AdviceComment> comments = adviceCommentRepository.findByTransactionId(transactionId);
+        
+        return comments.stream()
+                .map(comment -> AdviceCommentDTO.builder()
+                        .id(comment.getId())
+                        .message(comment.getMessage())
+                        .timestamp(comment.getTimestamp())
+                        .advisorName(comment.getAdvisor().getFirstName() + " " + comment.getAdvisor().getLastName())
+                        .transactionId(comment.getTransaction().getId())
+                        .build())
+                .collect(Collectors.toList());
     }
 }

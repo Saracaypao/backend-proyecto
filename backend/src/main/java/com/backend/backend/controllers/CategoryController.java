@@ -7,7 +7,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/categories")
@@ -18,12 +20,16 @@ public class CategoryController {
 
     // Maneja peticion crear una catergoria
     @PostMapping
-    public ResponseEntity<Void> createCategory(@RequestBody CategoryDTO dto) {
+    public ResponseEntity<?> createCategory(@RequestBody CategoryDTO dto) {
         try {
             categoryService.createCategory(dto);
-            return ResponseEntity.ok().build();
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Category created successfully");
+            return ResponseEntity.ok(response);
         } catch (Exception e){
-            return ResponseEntity.badRequest().build();
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
         }
     }
 
@@ -45,6 +51,21 @@ public class CategoryController {
             return ResponseEntity.ok(category);
         } catch (Exception e){
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    // Maneja peticion para eliminar una categoria por ID
+    @DeleteMapping("/{categoryId}")
+    public ResponseEntity<?> deleteCategory(@PathVariable String categoryId) {
+        try {
+            categoryService.deleteCategory(categoryId);
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Category deleted successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e){
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
         }
     }
 }

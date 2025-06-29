@@ -1,6 +1,7 @@
 package com.backend.backend.dto;
 
 import com.backend.backend.entities.Transaction.Type;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Data;
 
@@ -21,6 +22,7 @@ public class TransactionDTO {
 
     private Type type;
 
+    @JsonProperty("isPublic")
     private boolean isPublic;
 
 
