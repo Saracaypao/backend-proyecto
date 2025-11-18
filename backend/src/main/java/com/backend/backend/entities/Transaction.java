@@ -36,7 +36,7 @@ public class Transaction {
     private Type type;
 
     @Column(nullable = false)
-    private boolean isPublic = false;
+    private boolean isPublic;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")

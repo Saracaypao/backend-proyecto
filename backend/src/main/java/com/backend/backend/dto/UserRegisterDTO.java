@@ -25,6 +25,4 @@ public class UserRegisterDTO {
     @NotBlank(message = "La contraseña es requerida")
     @Size(min = 6, max = 100, message = "La contraseña debe tener al menos 6 caracteres")
     private String password;
-    
-    private String role = "USER"; // Por defecto USER, puede ser "USER" o "ADVISOR"
 }

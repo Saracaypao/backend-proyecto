@@ -35,7 +35,7 @@ public class SecurityConfig {
                         // Permitir todos los preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Rutas públicas
-                        .requestMatchers("/auth/**", "/users/register").permitAll()
+                        .requestMatchers("/auth/**", "/users/register", "/users/admin/create-advisor").permitAll()
                         // Resto autenticado
                         .anyRequest().authenticated()
                 )
