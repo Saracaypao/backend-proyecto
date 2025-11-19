@@ -33,6 +33,9 @@ public class User {
     @Enumerated(EnumType.STRING)
     private Role role;
 
+    @Column(length = 500)
+    private String bio;
+
     public enum Role{
         USER, ADVISOR
     }

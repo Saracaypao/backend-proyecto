@@ -5,7 +5,6 @@ import com.backend.backend.entities.User;
 import com.backend.backend.services.TransactionService;
 import com.backend.backend.services.UserService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,7 +17,12 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 @CrossOrigin(
-        origins = "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app",
+        origins = {
+                "http://localhost:5500",
+                "http://127.0.0.1:5500",
+                "http://localhost:5173",
+                "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app"
+        },
         allowedHeaders = "*",
         allowCredentials = "true"
 )
@@ -26,13 +30,9 @@ import java.util.regex.Pattern;
 @RequestMapping("/users")
 public class UserController {
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
+    private final TransactionService transactionService;
 
-    @Autowired
-    private TransactionService transactionService;
-
-    // Para validar si un string es un UUID válido
     @Value("${app.internal.admin-secret}")
     private String internalAdminSecret;
 
@@ -41,7 +41,13 @@ public class UserController {
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
     );
 
-    //  Endpoint público: registra usuario
+    public UserController(UserService userService, TransactionService transactionService) {
+        this.userService = userService;
+        this.transactionService = transactionService;
+    }
+
+
+    // Endpoint público: registra usuario
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody @Valid UserRegisterDTO dto) {
         try {
@@ -101,6 +107,10 @@ public class UserController {
             @RequestBody Map<String, String> request,
             @AuthenticationPrincipal User user) {
         try {
+            if (user == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+            }
+
             String currentPassword = request.get("currentPassword");
             String newPassword = request.get("newPassword");
 
@@ -122,6 +132,74 @@ public class UserController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", "Internal server error"));
+        }
+    }
+
+    // Devuelve los datos del usuario logueado
+    @GetMapping("/profile")
+    public ResponseEntity<?> getProfile(@AuthenticationPrincipal User user) {
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("firstName", user.getFirstName());
+        body.put("lastName", user.getLastName());
+        body.put("email", user.getEmail());
+        body.put("bio", user.getBio());
+        body.put("role", user.getRole().name());
+
+        return ResponseEntity.ok(body);
+    }
+
+    // Actualiza firstName, lastName, email y bio del usuario logueado
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(
+            @AuthenticationPrincipal User user,
+            @RequestBody Map<String, String> payload
+    ) {
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+
+        String firstName = (payload.getOrDefault("firstName", "")).trim();
+        String lastName  = (payload.getOrDefault("lastName", "")).trim();
+        String email     = (payload.getOrDefault("email", "")).trim();
+        String bio       = (payload.getOrDefault("bio", "")).trim();
+
+        if (firstName.isEmpty() || lastName.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "First name and last name are required"));
+        }
+        if (email.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Email is required"));
+        }
+
+        try {
+            System.out.println("Updating profile for user: " + user.getEmail());
+            System.out.println("New values -> firstName=" + firstName +
+                    ", lastName=" + lastName + ", email=" + email + ", bio=" + bio);
+
+            User updated = userService.updateUserProfile(
+                    user.getEmail(),
+                    firstName,
+                    lastName,
+                    email,
+                    bio
+            );
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("firstName", updated.getFirstName());
+            body.put("lastName", updated.getLastName());
+            body.put("email", updated.getEmail());
+            body.put("bio", updated.getBio());
+            body.put("role", updated.getRole().name());
+
+            return ResponseEntity.ok(body);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Internal server error"));
         }
     }
 }
