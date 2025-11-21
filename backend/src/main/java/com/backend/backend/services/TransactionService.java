@@ -55,6 +55,89 @@ public class TransactionService {
         return transactionRepository.findByUserId(user.getId());
     }
 
+    // Para Epica 6 Historia 6. empieza
+    // Datos para graficos de gastos PUBLICOS por usuario y por rango de fechas
+    // Devuelve distribucion por categoria y tendencia de gasto (por dia)
+    public Map<String, Object> obtenerGraficosDeGastosPublicos(String userId, String startDateStr, String endDateStr) {
+        // validamos usuario
+        User usuario = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado para graficos"));
+
+        // fechas opcionales, si no mandan usamos ultimos 30 dias
+        LocalDate hoy = LocalDate.now();
+        LocalDate fechaInicio = (startDateStr != null && !startDateStr.trim().isEmpty())
+                ? LocalDate.parse(startDateStr)
+                : hoy.minusDays(29);
+
+        LocalDate fechaFin = (endDateStr != null && !endDateStr.trim().isEmpty())
+                ? LocalDate.parse(endDateStr)
+                : hoy;
+
+        if (fechaFin.isBefore(fechaInicio)) {
+            // si se van de cabeza, invertimos simple para no romper
+            LocalDate tmp = fechaInicio;
+            fechaInicio = fechaFin;
+            fechaFin = tmp;
+        }
+
+        // traemos SOLO transacciones publicas del usuario y en el rango de fechas
+        List<Transaction> transPublicas = transactionRepository
+                .findByUserAndIsPublicTrueAndDateBetween(usuario, fechaInicio, fechaFin);
+
+        // nos quedamos con gastos (EXPENSE) nada mas para estos graficos
+        List<Transaction> gastos = new ArrayList<>();
+        for (Transaction t : transPublicas) {
+            if (t.getType() == Transaction.Type.EXPENSE) {
+                gastos.add(t);
+            }
+        }
+
+        // Distribucion por categoria
+        Map<String, Double> distribucion = new LinkedHashMap<>();
+        for (Transaction g : gastos) {
+            String nombreCat = (g.getCategory() != null && g.getCategory().getName() != null && !g.getCategory().getName().isEmpty())
+                    ? g.getCategory().getName()
+                    : "Sin categoría";
+            distribucion.put(nombreCat, distribucion.getOrDefault(nombreCat, 0.0) + g.getAmount());
+        }
+
+        // Tendencia por fecha (sumatoria diaria)
+        // inicializamos todos los dias en 0 para que el grafico no tenga huecos
+        Map<LocalDate, Double> tendenciaMapa = new LinkedHashMap<>();
+        LocalDate cursor = fechaInicio;
+        while (!cursor.isAfter(fechaFin)) {
+            tendenciaMapa.put(cursor, 0.0);
+            cursor = cursor.plusDays(1);
+        }
+        for (Transaction g : gastos) {
+            LocalDate d = g.getDate();
+            tendenciaMapa.put(d, tendenciaMapa.getOrDefault(d, 0.0) + g.getAmount());
+        }
+
+        // formateamos tendencia a una lista para el frontend
+        List<Map<String, Object>> tendencia = new ArrayList<>();
+        for (Map.Entry<LocalDate, Double> e : tendenciaMapa.entrySet()) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("date", e.getKey().toString());
+            // redondeamos a 2 decimales por prolijidad
+            item.put("expense", BigDecimal.valueOf(e.getValue()).setScale(2, RoundingMode.HALF_UP).doubleValue());
+            tendencia.add(item);
+        }
+
+        // tambien devolvemos totales por si los quieren mostrar
+        double totalGasto = gastos.stream().mapToDouble(Transaction::getAmount).sum();
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("userId", usuario.getId());
+        res.put("periodo", fechaInicio + " a " + fechaFin);
+        res.put("totalGasto", BigDecimal.valueOf(totalGasto).setScale(2, RoundingMode.HALF_UP).doubleValue());
+        res.put("distribucionPorCategoria", distribucion); // {"Alimentos": 120.5, ...}
+        res.put("tendenciaPorFecha", tendencia);           // [{date:"2025-11-01", expense: 40.0}, ...]
+
+        return res;
+    }
+    //Para Epica 6 Historia 6. Termina
+
     // Devuelve las ultimas 5 transacciones del usuario
     public List<Transaction> getLast5Transactions(User user) {
         return transactionRepository.findTop5ByUserOrderByDateDesc(user);

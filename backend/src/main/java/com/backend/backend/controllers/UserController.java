@@ -1,9 +1,11 @@
 package com.backend.backend.controllers;
 
 import com.backend.backend.dto.UserRegisterDTO;
+import com.backend.backend.dto.AdviceHistoryItemDTO;
 import com.backend.backend.entities.User;
 import com.backend.backend.services.TransactionService;
 import com.backend.backend.services.UserService;
+import com.backend.backend.services.AdviceRequestService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +34,7 @@ public class UserController {
 
     private final UserService userService;
     private final TransactionService transactionService;
+    private final AdviceRequestService adviceRequestService;  // para traer el historial de asesorías
 
     @Value("${app.internal.admin-secret}")
     private String internalAdminSecret;
@@ -41,9 +44,10 @@ public class UserController {
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
     );
 
-    public UserController(UserService userService, TransactionService transactionService) {
+    public UserController(UserService userService, TransactionService transactionService, AdviceRequestService adviceRequestService) {
         this.userService = userService;
         this.transactionService = transactionService;
+        this.adviceRequestService = adviceRequestService;
     }
 
 
@@ -135,6 +139,22 @@ public class UserController {
         }
     }
 
+    // Desde el perfil de cada usuario: ver su historial de asesorías
+    // Lista cronológica (lo mas nuevo primero) con fecha, tipo (categoria) y descripción
+    @GetMapping("/{userId}/advice-history")
+    public ResponseEntity<?> verHistorialDeAsesorias(@PathVariable String userId) {
+        try {
+            var historial = adviceRequestService.getHistorialDeAsesoriasDeUsuario(userId);
+
+            // devolvemos tal cual la lista para que el frontend la pinte sin recargar la pagina
+            return ResponseEntity.ok(historial);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
     // Devuelve los datos del usuario logueado
     @GetMapping("/profile")
     public ResponseEntity<?> getProfile(@AuthenticationPrincipal User user) {
@@ -200,6 +220,29 @@ public class UserController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", "Internal server error"));
+        }
+    }
+    //Epica 6 Historia de usuario 5 y 6
+    // Graficos de gastos públicos de un usuario (solo asesores)
+    // - distribucion por categoria
+    // - tendencia de gasto por fecha
+    // Los datos cambian segun el rango de fechas enviado
+    @GetMapping("/{userId}/public-spending/charts")
+    public ResponseEntity<?> getPublicSpendingCharts(
+            @PathVariable String userId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @AuthenticationPrincipal User advisor
+    ) {
+        try {
+            if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
+                return ResponseEntity.status(403).body(Map.of("error", "Solo asesores pueden ver graficos de gastos públicos"));
+            }
+
+            var data = transactionService.obtenerGraficosDeGastosPublicos(userId, startDate, endDate);
+            return ResponseEntity.ok(data);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 }

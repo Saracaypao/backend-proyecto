@@ -11,9 +11,15 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDate;
 
 @CrossOrigin(
-        origins = "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app",
+        origins = {
+                "http://localhost:5500",
+                "http://127.0.0.1:5500",
+                "http://localhost:5173",
+                "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app"
+        },
         allowedHeaders = "*",
         allowCredentials = "true"
 )
@@ -32,6 +38,21 @@ public class AdviceRequestController {
             return ResponseEntity.ok(report);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // Buscar asesorías con filtros combinables por rango de fechas y nombre de usuario
+    @GetMapping("/search")
+    public ResponseEntity<List<AdviceRequestResponseDTO>> search(
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate,
+            @RequestParam(required = false) String username
+    ) {
+        try {
+            List<AdviceRequestResponseDTO> results = adviceRequestService.listAdviceRequests(startDate, endDate, username);
+            return ResponseEntity.ok(results);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 
@@ -155,4 +176,22 @@ public class AdviceRequestController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
-} 
+
+    // Actualizar solo la categoría de una asesoría (pensado para el asesor)
+    @PutMapping("/{id}/category")
+    public ResponseEntity<?> updateCategory(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal User advisor
+    ) {
+        try {
+            String categoryId = body != null ? body.get("categoryId") : null;
+
+            AdviceRequestResponseDTO updated = adviceRequestService.updateCategory(id, categoryId, advisor);
+
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+}
