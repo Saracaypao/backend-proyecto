@@ -25,6 +25,9 @@ public interface AdviceRequestRepository extends JpaRepository<AdviceRequest, St
     // Obtener solicitudes de un usuario con un estado específico
     List<AdviceRequest> findByUserAndStatus(User user, AdviceRequest.Status status);
     
+    // Obtener SOLO COMPLETADAS de un usuario, ordenadas por fecha de finalización DESC
+    List<AdviceRequest> findByUserAndStatusOrderByCompletedAtDesc(User user, AdviceRequest.Status status);
+    
     // Obtener solicitudes aceptadas por un asesor con un estado específico
     List<AdviceRequest> findByAdvisorAndStatus(User advisor, AdviceRequest.Status status);
 
@@ -34,6 +37,22 @@ public interface AdviceRequestRepository extends JpaRepository<AdviceRequest, St
             "AND (:end IS NULL OR ar.createdAt <= :end) " +
             "AND (:username IS NULL OR LOWER(CONCAT(u.firstName, ' ', u.lastName)) LIKE LOWER(CONCAT('%', :username, '%'))) ")
     List<AdviceRequest> findByFilters(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("username") String username);
+
+    // Búsqueda filtrando exclusivamente asesor asignado (para rol advisor)
+    // Nota: el filtro `username` aplica SOLO sobre firstName y lastName (coincidencia parcial, case-insensitive)
+    @Query("SELECT ar FROM AdviceRequest ar JOIN ar.user u " +
+            "WHERE ar.advisor = :advisor " +
+            "AND (:start IS NULL OR ar.createdAt >= :start) " +
+            "AND (:end IS NULL OR ar.createdAt <= :end) " +
+            "AND ( :username IS NULL OR (" +
+            "       LOWER(TRIM(COALESCE(u.firstName, ''))) LIKE LOWER(CONCAT('%', :username, '%')) OR " +
+            "       LOWER(TRIM(COALESCE(u.lastName, '')))  LIKE LOWER(CONCAT('%', :username, '%')) " +
+            "    ))")
+    List<AdviceRequest> findAdvisorAssignmentsByFilters(
+            @Param("advisor") User advisor,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
             @Param("username") String username);

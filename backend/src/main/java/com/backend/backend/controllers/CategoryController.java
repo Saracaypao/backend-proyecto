@@ -12,7 +12,19 @@ import java.util.List;
 import java.util.Map;
 
 @CrossOrigin(
-        origins = "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app",
+        origins = {
+                // Dev ports usados por distintas herramientas
+                "http://localhost:3001",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                // Vite y Live Server
+                "http://localhost:5173",
+                "http://localhost:5500",
+                "http://127.0.0.1:5500",
+                // Deploys en Vercel conocidos
+                "https://pnc-proyecto-final-frontend-grupo-0-five.vercel.app",
+                "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app"
+        },
         allowedHeaders = "*",
         allowCredentials = "true"
 )

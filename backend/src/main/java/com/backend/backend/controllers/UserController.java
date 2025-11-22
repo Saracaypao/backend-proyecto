@@ -20,9 +20,16 @@ import java.util.regex.Pattern;
 
 @CrossOrigin(
         origins = {
+                // Dev ports usados por distintas herramientas
+                "http://localhost:3001",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                // Vite y Live Server
+                "http://localhost:5173",
                 "http://localhost:5500",
                 "http://127.0.0.1:5500",
-                "http://localhost:5173",
+                // Deploys en Vercel conocidos
+                "https://pnc-proyecto-final-frontend-grupo-0-five.vercel.app",
                 "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app"
         },
         allowedHeaders = "*",
@@ -139,14 +146,24 @@ public class UserController {
         }
     }
 
+    // Epica 6 Historia 5
     // Desde el perfil de cada usuario: ver su historial de asesorías
     // Lista cronológica (lo mas nuevo primero) con fecha, tipo (categoria) y descripción
     @GetMapping("/{userId}/advice-history")
-    public ResponseEntity<?> verHistorialDeAsesorias(@PathVariable String userId) {
+    public ResponseEntity<?> verHistorialDeAsesorias(
+            @PathVariable String userId,
+            @AuthenticationPrincipal User advisor
+    ) {
         try {
+            // Solo los asesores pueden consultar historial de asesorías de usuarios
+            if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
+                return ResponseEntity.status(403).body(Map.of(
+                        "error", "Solo asesores pueden ver el historial de asesorías"
+                ));
+            }
             var historial = adviceRequestService.getHistorialDeAsesoriasDeUsuario(userId);
 
-            // devolvemos tal cual la lista para que el frontend la pinte sin recargar la pagina
+            // Se devuelve la lista para que se vea sin recargar la pagina
             return ResponseEntity.ok(historial);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -220,29 +237,6 @@ public class UserController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", "Internal server error"));
-        }
-    }
-    //Epica 6 Historia de usuario 5 y 6
-    // Graficos de gastos públicos de un usuario (solo asesores)
-    // - distribucion por categoria
-    // - tendencia de gasto por fecha
-    // Los datos cambian segun el rango de fechas enviado
-    @GetMapping("/{userId}/public-spending/charts")
-    public ResponseEntity<?> getPublicSpendingCharts(
-            @PathVariable String userId,
-            @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate,
-            @AuthenticationPrincipal User advisor
-    ) {
-        try {
-            if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
-                return ResponseEntity.status(403).body(Map.of("error", "Solo asesores pueden ver graficos de gastos públicos"));
-            }
-
-            var data = transactionService.obtenerGraficosDeGastosPublicos(userId, startDate, endDate);
-            return ResponseEntity.ok(data);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 }

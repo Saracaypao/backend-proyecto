@@ -3,6 +3,7 @@ package com.backend.backend.services;
 import com.backend.backend.dto.AdviceRequestDTO;
 import com.backend.backend.dto.AdviceRequestResponseDTO;
 import com.backend.backend.dto.AdviceHistoryItemDTO;
+import com.backend.backend.dto.AdvisorAssignedClientDTO;
 import com.backend.backend.entities.AdviceRequest;
 import com.backend.backend.entities.User;
 import com.backend.backend.entities.Category;
@@ -121,6 +122,45 @@ public class AdviceRequestService {
                 .collect(Collectors.toList());
     }
 
+    // Listado de asignaciones del asesor por estado específico
+    public List<AdviceRequestResponseDTO> getAdvisorRequestsByStatus(String advisorEmail, AdviceRequest.Status status) {
+        User advisor = userRepository.findByEmailIgnoreCase(advisorEmail)
+                .orElseThrow(() -> new RuntimeException("Advisor not found"));
+
+        if (advisor.getRole() != User.Role.ADVISOR) {
+            throw new RuntimeException("Only advisors can view assignments");
+        }
+
+        List<AdviceRequest> advisorRequests = adviceRequestRepository.findByAdvisorAndStatus(advisor, status);
+        return advisorRequests.stream()
+                .map(AdviceRequestResponseDTO::fromAdviceRequest)
+                .collect(Collectors.toList());
+    }
+
+    // Listado de asignaciones del asesor autenticado con filtros (rango de fechas y nombre de usuario)
+    public List<AdviceRequestResponseDTO> listAdvisorAssignments(User advisor,
+                                                                 LocalDate startDate,
+                                                                 LocalDate endDate,
+                                                                 String username) {
+        if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
+            throw new RuntimeException("Only advisors can filter their assignments");
+        }
+
+        LocalDateTime start = null;
+        LocalDateTime end = null;
+        if (startDate != null) start = startDate.atStartOfDay();
+        if (endDate != null) end = endDate.atTime(23, 59, 59, 999_000_000);
+
+        String normalizedUsername = (username != null && !username.trim().isEmpty()) ? username.trim() : null;
+
+        List<AdviceRequest> results = adviceRequestRepository
+                .findAdvisorAssignmentsByFilters(advisor, start, end, normalizedUsername);
+
+        return results.stream()
+                .map(AdviceRequestResponseDTO::fromAdviceRequest)
+                .collect(Collectors.toList());
+    }
+
     // Aceptar una solicitud de asesoría
     public void acceptRequest(String requestId, User advisor) {
         AdviceRequest request = adviceRequestRepository.findById(requestId)
@@ -181,6 +221,34 @@ public class AdviceRequestService {
         request.setStatus(AdviceRequest.Status.COMPLETED);
         request.setCompletedAt(LocalDateTime.now());
         adviceRequestRepository.save(request);
+    }
+
+    // Listar clientes (únicos) asignados históricamente al asesor (cualquier estado)
+    public List<AdvisorAssignedClientDTO> getAssignedClients(User advisor) {
+        if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
+            throw new RuntimeException("Only advisors can view assigned clients");
+        }
+
+        return adviceRequestRepository.findByAdvisor(advisor)
+                .stream()
+                .map(AdviceRequest::getUser)
+                .filter(u -> u != null)
+                .collect(Collectors.toMap(
+                        User::getId,
+                        u -> u,
+                        (a, b) -> a
+                ))
+                .values()
+                .stream()
+                .map(u -> AdvisorAssignedClientDTO.builder()
+                        .userId(u.getId())
+                        .email(u.getEmail())
+                        .firstName(u.getFirstName())
+                        .lastName(u.getLastName())
+                        .fullName((u.getFirstName() != null ? u.getFirstName() : "") +
+                                  " " +
+                                  (u.getLastName() != null ? u.getLastName() : "")).build())
+                .collect(Collectors.toList());
     }
 
     // Cancelar una solicitud
@@ -355,27 +423,38 @@ public class AdviceRequestService {
         return AdviceRequestResponseDTO.fromAdviceRequest(saved);
     }
 
-    // Historial para mostrar en el perfil de un usuario, bien sencillito y entendible
+    // Historial para mostrar en el perfil de un usuario
+    // Regla: solo aparecen asesorías COMPLETADAS y se ordenan de más reciente a más antigua
     public List<AdviceHistoryItemDTO> getHistorialDeAsesoriasDeUsuario(String userId) {
-        // primero buscamos al usuario, por si mandan cualquier cosa
+        // 1) Validar usuario
         User elUsuario = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado para ver su historial"));
 
-        // traemos sus asesorías ordenadas de lo más nuevo a lo más viejito
-        List<AdviceRequest> asesorias = adviceRequestRepository.findByUserOrderByCreatedAtDesc(elUsuario);
+        // 2) Traer SOLO COMPLETADAS ordenadas por fecha de finalización DESC.
+        //    Si alguna no tuviera completedAt (caso borde), haremos un ordenamiento adicional en memoria con fallback.
+        List<AdviceRequest> ordenadas = adviceRequestRepository
+                .findByUserAndStatusOrderByCompletedAtDesc(elUsuario, AdviceRequest.Status.COMPLETED)
+                .stream()
+                .sorted((a, b) -> { // refuerzo por si algún completedAt es null
+                    LocalDateTime fa = a.getCompletedAt() != null ? a.getCompletedAt() : a.getCreatedAt();
+                    LocalDateTime fb = b.getCompletedAt() != null ? b.getCompletedAt() : b.getCreatedAt();
+                    return fb.compareTo(fa);
+                })
+                .collect(Collectors.toList());
 
-        // armamos una lista con la info puntual que quiere ver el asesor: fecha, tipo y descripción
-        return asesorias.stream().map(ar -> {
+        // 4) Mapear: fecha = completedAt (o createdAt), tipo = nombre de categoría, descripcion = adviceMessage (o descripción original)
+        return ordenadas.stream().map(ar -> {
             String tipoCategoria = (ar.getCategory() != null && ar.getCategory().getName() != null)
                     ? ar.getCategory().getName()
                     : "Sin tipo";
 
-            String descri = (ar.getDescription() != null && !ar.getDescription().trim().isEmpty())
-                    ? ar.getDescription()
-                    : "Sin descripción";
+            String descri = (ar.getAdviceMessage() != null && !ar.getAdviceMessage().trim().isEmpty())
+                    ? ar.getAdviceMessage()
+                    : (ar.getDescription() != null && !ar.getDescription().trim().isEmpty())
+                        ? ar.getDescription()
+                        : "Sin descripción";
 
-            // usamos createdAt como referencia cronológica, es cuando se registró la asesoría
-            LocalDateTime fechaQueMostramos = ar.getCreatedAt();
+            LocalDateTime fechaQueMostramos = ar.getCompletedAt() != null ? ar.getCompletedAt() : ar.getCreatedAt();
 
             return AdviceHistoryItemDTO.builder()
                     .idAsesoria(ar.getId())

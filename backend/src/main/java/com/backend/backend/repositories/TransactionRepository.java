@@ -17,6 +17,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, String
     List<Transaction> findByUserIdAndType(String userId, Transaction.Type type);
     List<Transaction> findByUserIdAndDateBetween(String userId, LocalDate startDate, LocalDate endDate);
     List<Transaction> findByIsPublicTrue();
+    List<Transaction> findByIsPublicTrueAndDateBetween(LocalDate startDate, LocalDate endDate);
+    List<Transaction> findByUserAndIsPublicTrue(User user);
     List<Transaction> findByUserAndIsPublicTrueAndDateBetween(User user, LocalDate startDate, LocalDate endDate);
     void deleteByUser(User user);
 }
