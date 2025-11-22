@@ -162,6 +162,26 @@ public class TransactionController {
         }
     }
 
+    @GetMapping("/summary/daily")
+    public ResponseEntity<Map<String, Object>> getDaily(@AuthenticationPrincipal User user) {
+        try {
+            Map<String, Object> data = transactionService.getDaily(user);
+            return ResponseEntity.ok(data);
+        } catch (Exception e){
+            return ResponseEntity.ok(Map.of("averageDailyExpense", 0));
+        }
+    }
+
+    @GetMapping("/summary/weekly")
+    public ResponseEntity<Map<String, Object>> getWeekly(@AuthenticationPrincipal User user) {
+        try{
+           Map<String, Object> data = transactionService.getWeekly(user);
+            return ResponseEntity.ok(data);
+        } catch (Exception e){
+            return ResponseEntity.ok(Map.of("averageWeeklyExpense", 0));
+        }
+    }
+
     @GetMapping("/public")
     public ResponseEntity<List<TransactionResponseDTO>> getPublicTransactions() {
         try {
