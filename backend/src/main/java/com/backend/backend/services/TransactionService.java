@@ -232,4 +232,55 @@ public class TransactionService {
     public List<Transaction> getPublicTransactions() {
         return transactionRepository.findByIsPublicTrue();
     }
+
+
+     //  Obtener gastos diarios
+public Map<String, Object> getDaily(User user) {
+    LocalDate today = LocalDate.now();
+
+    List<Transaction> transactions = transactionRepository.findByUserIdAndDate(
+            user.getId(),
+            today
+    );
+
+    double dailyExpense = transactions.stream()
+            .filter(t -> t.getType() == Transaction.Type.EXPENSE)
+            .mapToDouble(Transaction::getAmount)
+            .average()
+            .orElse(0.0);
+
+    Map<String, Object> result = new HashMap<>();
+    result.put("averageDailyExpense", BigDecimal.valueOf(dailyExpense)
+            .setScale(2, RoundingMode.HALF_UP)
+            .doubleValue());
+
+    return result;
+}
+
+// Obtenr gastos semanales
+public Map<String, Object> getWeekly(User user) {
+    LocalDate end = LocalDate.now();
+    LocalDate start = end.minusDays(6); // incluye hoy
+
+    List<Transaction> transactions = transactionRepository.findByUserIdAndDateBetween(
+            user.getId(),
+            start,
+            end
+    );
+
+    double totalExpense = transactions.stream()
+            .filter(t -> t.getType() == Transaction.Type.EXPENSE)
+            .mapToDouble(Transaction::getAmount)
+            .sum();
+
+    double weeklyAverage = totalExpense / 7.0;
+
+    Map<String, Object> result = new HashMap<>();
+    result.put("averageWeeklyExpense", BigDecimal.valueOf(weeklyAverage)
+            .setScale(2, RoundingMode.HALF_UP)
+            .doubleValue());
+
+    return result;
+}
+
 }
