@@ -14,12 +14,25 @@ import org.springframework.stereotype.Repository;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @CrossOrigin(
-        origins = "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app",
+        origins = {
+                // Dev ports usados por distintas herramientas
+                "http://localhost:3001",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                // Vite y Live Server
+                "http://localhost:5173",
+                "http://localhost:5500",
+                "http://127.0.0.1:5500",
+                // Deploys en Vercel conocidos
+                "https://pnc-proyecto-final-frontend-grupo-0-five.vercel.app",
+                "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app"
+        },
         allowedHeaders = "*",
         allowCredentials = "true"
 )
@@ -183,6 +196,54 @@ public class TransactionController {
         }
     }
 
+    // Grafico de pie para asesores: distribucion de transacciones públicas por categoría.
+    // Si no se envían startDate y endDate, devuelve todo el historial desde el comienzo.
+    @GetMapping("/public/pie")
+    public ResponseEntity<Map<String, Object>> getPublicPieChart(
+            @AuthenticationPrincipal User advisor,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate
+    ) {
+        try {
+            if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
+                return ResponseEntity.status(403).body(Map.of("error", "Solo asesores pueden acceder al gráfico público"));
+            }
 
+            Map<String, Object> result = transactionService.getPublicTransactionsPie(startDate, endDate);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 
+    // Grafico de barras por categorías de transacciones públicas de un CLIENTE específico (solo asesores)
+    // Params: userId (obligatorio), startDate y endDate opcionales
+    @GetMapping("/public/by-client-category")
+    public ResponseEntity<Map<String, Object>> getPublicByClientCategory(
+            @AuthenticationPrincipal User advisor,
+            @RequestParam String userId,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate
+    ) {
+        try {
+            Map<String, Object> data = transactionService.getPublicByClientCategory(advisor, userId, startDate, endDate);
+            return ResponseEntity.ok(data);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // Dataset por defecto (todas las categorias con 0) para inicializar el grafico de asesor
+    @GetMapping("/public/default-by-category")
+    public ResponseEntity<Map<String, Object>> getDefaultByCategory() {
+        try {
+            Map<String, Object> data = transactionService.getDefaultZeroByCategory();
+            return ResponseEntity.ok(data);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

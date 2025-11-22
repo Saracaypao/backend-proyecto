@@ -2,16 +2,21 @@ package com.backend.backend.services;
 
 import com.backend.backend.dto.AdviceRequestDTO;
 import com.backend.backend.dto.AdviceRequestResponseDTO;
+import com.backend.backend.dto.AdviceHistoryItemDTO;
+import com.backend.backend.dto.AdvisorAssignedClientDTO;
 import com.backend.backend.entities.AdviceRequest;
 import com.backend.backend.entities.User;
+import com.backend.backend.entities.Category;
 import com.backend.backend.entities.Transaction;
 import com.backend.backend.repositories.AdviceRequestRepository;
 import com.backend.backend.repositories.UserRepository;
 import com.backend.backend.repositories.TransactionRepository;
+import com.backend.backend.repositories.CategoryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -29,6 +34,9 @@ public class AdviceRequestService {
     @Autowired
     private TransactionRepository transactionRepository;
 
+    @Autowired
+    private CategoryRepository categoryRepository;
+
     // Crear una nueva solicitud de asesoría
     public AdviceRequestResponseDTO createAdviceRequest(AdviceRequestDTO dto, String userEmail) {
         User user = userRepository.findByEmailIgnoreCase(userEmail)
@@ -45,8 +53,39 @@ public class AdviceRequestService {
                 .status(AdviceRequest.Status.PENDING)
                 .build();
 
+        // Epica 6 Hitoria 4. comienza
+        // intentar asignar categoria si viene en el dto (puede venir vacia y no pasa nada)
+        if (dto.getCategoryId() != null && !dto.getCategoryId().trim().isEmpty()) {
+            Category category = categoryRepository.findById(dto.getCategoryId())
+                    .orElseThrow(() -> new RuntimeException("Categoria no encontrada, revise el id porfa"));
+            request.setCategory(category);
+        }        // Epica 6 Hitoria 4. termina
+
         AdviceRequest savedRequest = adviceRequestRepository.save(request);
         return AdviceRequestResponseDTO.fromAdviceRequest(savedRequest);
+    }
+
+    //Epica 6 Histsoria 4. Comienza
+    // Listado con filtros combinables por rango de fechas (creación) y nombre del usuario
+    public List<AdviceRequestResponseDTO> listAdviceRequests(LocalDate startDate, LocalDate endDate, String username) {
+        LocalDateTime start = null;
+        LocalDateTime end = null;
+
+        if (startDate != null) {
+            start = startDate.atStartOfDay();
+        }
+        if (endDate != null) {
+            // incluir todo el día hasta 23:59:59.999999999
+            end = endDate.atTime(23, 59, 59, 999_000_000);
+        }
+
+        // normalizar username vacío a null para que el repositorio lo ignore
+        String normalizedUsername = (username != null && !username.trim().isEmpty()) ? username.trim() : null;
+
+        List<AdviceRequest> results = adviceRequestRepository.findByFilters(start, end, normalizedUsername);
+        return results.stream()
+                .map(AdviceRequestResponseDTO::fromAdviceRequest)
+                .collect(Collectors.toList());
     }
 
     // Obtener solicitudes pendientes para asesores
@@ -55,7 +94,7 @@ public class AdviceRequestService {
         return pendingRequests.stream()
                 .map(AdviceRequestResponseDTO::fromAdviceRequest)
                 .collect(Collectors.toList());
-    }
+    }    //Epica 6 Histsoria 4. Termina
 
     // Obtener solicitudes de un usuario específico
     public List<AdviceRequestResponseDTO> getUserRequests(String userEmail) {
@@ -79,6 +118,45 @@ public class AdviceRequestService {
 
         List<AdviceRequest> advisorRequests = adviceRequestRepository.findByAdvisor(advisor);
         return advisorRequests.stream()
+                .map(AdviceRequestResponseDTO::fromAdviceRequest)
+                .collect(Collectors.toList());
+    }
+
+    // Listado de asignaciones del asesor por estado específico
+    public List<AdviceRequestResponseDTO> getAdvisorRequestsByStatus(String advisorEmail, AdviceRequest.Status status) {
+        User advisor = userRepository.findByEmailIgnoreCase(advisorEmail)
+                .orElseThrow(() -> new RuntimeException("Advisor not found"));
+
+        if (advisor.getRole() != User.Role.ADVISOR) {
+            throw new RuntimeException("Only advisors can view assignments");
+        }
+
+        List<AdviceRequest> advisorRequests = adviceRequestRepository.findByAdvisorAndStatus(advisor, status);
+        return advisorRequests.stream()
+                .map(AdviceRequestResponseDTO::fromAdviceRequest)
+                .collect(Collectors.toList());
+    }
+
+    // Listado de asignaciones del asesor autenticado con filtros (rango de fechas y nombre de usuario)
+    public List<AdviceRequestResponseDTO> listAdvisorAssignments(User advisor,
+                                                                 LocalDate startDate,
+                                                                 LocalDate endDate,
+                                                                 String username) {
+        if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
+            throw new RuntimeException("Only advisors can filter their assignments");
+        }
+
+        LocalDateTime start = null;
+        LocalDateTime end = null;
+        if (startDate != null) start = startDate.atStartOfDay();
+        if (endDate != null) end = endDate.atTime(23, 59, 59, 999_000_000);
+
+        String normalizedUsername = (username != null && !username.trim().isEmpty()) ? username.trim() : null;
+
+        List<AdviceRequest> results = adviceRequestRepository
+                .findAdvisorAssignmentsByFilters(advisor, start, end, normalizedUsername);
+
+        return results.stream()
                 .map(AdviceRequestResponseDTO::fromAdviceRequest)
                 .collect(Collectors.toList());
     }
@@ -145,6 +223,34 @@ public class AdviceRequestService {
         adviceRequestRepository.save(request);
     }
 
+    // Listar clientes (únicos) asignados históricamente al asesor (cualquier estado)
+    public List<AdvisorAssignedClientDTO> getAssignedClients(User advisor) {
+        if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
+            throw new RuntimeException("Only advisors can view assigned clients");
+        }
+
+        return adviceRequestRepository.findByAdvisor(advisor)
+                .stream()
+                .map(AdviceRequest::getUser)
+                .filter(u -> u != null)
+                .collect(Collectors.toMap(
+                        User::getId,
+                        u -> u,
+                        (a, b) -> a
+                ))
+                .values()
+                .stream()
+                .map(u -> AdvisorAssignedClientDTO.builder()
+                        .userId(u.getId())
+                        .email(u.getEmail())
+                        .firstName(u.getFirstName())
+                        .lastName(u.getLastName())
+                        .fullName((u.getFirstName() != null ? u.getFirstName() : "") +
+                                  " " +
+                                  (u.getLastName() != null ? u.getLastName() : "")).build())
+                .collect(Collectors.toList());
+    }
+
     // Cancelar una solicitud
     public AdviceRequestResponseDTO cancelRequest(String requestId, String userEmail) {
         AdviceRequest request = adviceRequestRepository.findById(requestId)
@@ -204,6 +310,13 @@ public class AdviceRequestService {
         report.put("startDate", request.getStartDate() != null ? request.getStartDate().toString() : "No especificada");
         report.put("endDate", request.getEndDate() != null ? request.getEndDate().toString() : "No especificada");
         report.put("status", request.getStatus().toString());
+        if (request.getCategory() != null) {
+            report.put("categoryId", request.getCategory().getId());
+            report.put("categoryName", request.getCategory().getName());
+        } else {
+            report.put("categoryId", null);
+            report.put("categoryName", "Sin categoría");
+        }
         report.put("userEmail", request.getUser().getEmail());
         report.put("userName", request.getUser().getFirstName() + " " + request.getUser().getLastName());
         report.put("advisorEmail", advisor.getEmail());
@@ -280,4 +393,75 @@ public class AdviceRequestService {
         request.setCompletedAt(LocalDateTime.now());
         adviceRequestRepository.save(request);
     }
-} 
+
+    // Epica 6 Historia 4. comienza
+    // Editar solo la categoria de una asesoría, pensado para el asesor asignado
+    public AdviceRequestResponseDTO updateCategory(String requestId, String categoryId, User advisor) {
+        AdviceRequest request = adviceRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Solicitud no encontrada"));
+
+        // Solo asesores pueden editar y además debe ser el asignado si hay uno
+        if (advisor == null || !advisor.getRole().equals(User.Role.ADVISOR)) {
+            throw new RuntimeException("Solo asesores pueden editar la categoría");
+        }
+
+        if (request.getAdvisor() != null && !advisor.getId().equals(request.getAdvisor().getId())) {
+            throw new RuntimeException("Solo el asesor asignado puede cambiar la categoría");
+        }
+
+        // si viene vacio, quitamos la categoria para dejarlo sin clasificacion
+        if (categoryId == null || categoryId.trim().isEmpty()) {
+            request.setCategory(null);
+        } else {
+            Category category = categoryRepository.findById(categoryId)
+                    .orElseThrow(() -> new RuntimeException("Categoria no existe, no se puede asignar"));
+            request.setCategory(category);
+        }
+
+        request.setUpdatedAt(LocalDateTime.now());
+        AdviceRequest saved = adviceRequestRepository.save(request);
+        return AdviceRequestResponseDTO.fromAdviceRequest(saved);
+    }
+
+    // Historial para mostrar en el perfil de un usuario
+    // Regla: solo aparecen asesorías COMPLETADAS y se ordenan de más reciente a más antigua
+    public List<AdviceHistoryItemDTO> getHistorialDeAsesoriasDeUsuario(String userId) {
+        // 1) Validar usuario
+        User elUsuario = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado para ver su historial"));
+
+        // 2) Traer SOLO COMPLETADAS ordenadas por fecha de finalización DESC.
+        //    Si alguna no tuviera completedAt (caso borde), haremos un ordenamiento adicional en memoria con fallback.
+        List<AdviceRequest> ordenadas = adviceRequestRepository
+                .findByUserAndStatusOrderByCompletedAtDesc(elUsuario, AdviceRequest.Status.COMPLETED)
+                .stream()
+                .sorted((a, b) -> { // refuerzo por si algún completedAt es null
+                    LocalDateTime fa = a.getCompletedAt() != null ? a.getCompletedAt() : a.getCreatedAt();
+                    LocalDateTime fb = b.getCompletedAt() != null ? b.getCompletedAt() : b.getCreatedAt();
+                    return fb.compareTo(fa);
+                })
+                .collect(Collectors.toList());
+
+        // 4) Mapear: fecha = completedAt (o createdAt), tipo = nombre de categoría, descripcion = adviceMessage (o descripción original)
+        return ordenadas.stream().map(ar -> {
+            String tipoCategoria = (ar.getCategory() != null && ar.getCategory().getName() != null)
+                    ? ar.getCategory().getName()
+                    : "Sin tipo";
+
+            String descri = (ar.getAdviceMessage() != null && !ar.getAdviceMessage().trim().isEmpty())
+                    ? ar.getAdviceMessage()
+                    : (ar.getDescription() != null && !ar.getDescription().trim().isEmpty())
+                        ? ar.getDescription()
+                        : "Sin descripción";
+
+            LocalDateTime fechaQueMostramos = ar.getCompletedAt() != null ? ar.getCompletedAt() : ar.getCreatedAt();
+
+            return AdviceHistoryItemDTO.builder()
+                    .idAsesoria(ar.getId())
+                    .fecha(fechaQueMostramos)
+                    .tipo(tipoCategoria)
+                    .descripcion(descri)
+                    .build();
+        }).collect(Collectors.toList());
+    }// EPICA 6 HISTORIA 4. TERMINA
+}

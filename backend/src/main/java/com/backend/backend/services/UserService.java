@@ -21,11 +21,20 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // Lógica para registrar un usuario -> siempre USER
+    // Lógica para registrar un usuario -> respeta el rol enviado (USER/ADVISOR), por defecto USER
     @Transactional
     public void registerUser(UserRegisterDTO dto) {
         if (userRepository.findByEmailIgnoreCase(dto.getEmail()).isPresent()) {
             throw new RuntimeException("This email is already in use");
+        }
+
+        // Determinar rol desde el DTO (fallback a USER si viene vacío o inválido)
+        User.Role role = User.Role.USER;
+        if (dto.getRole() != null) {
+            String r = dto.getRole().trim().toUpperCase();
+            if ("ADVISOR".equals(r)) {
+                role = User.Role.ADVISOR;
+            }
         }
 
         User user = User.builder()
@@ -33,7 +42,7 @@ public class UserService {
                 .lastName(dto.getLastName())
                 .email(dto.getEmail())
                 .password(passwordEncoder.encode(dto.getPassword()))
-                .role(User.Role.USER) // siempre USER
+                .role(role)
                 .build();
 
         userRepository.save(user);

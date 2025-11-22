@@ -2,6 +2,8 @@ package com.backend.backend.controllers;
 
 import com.backend.backend.dto.AdviceRequestDTO;
 import com.backend.backend.dto.AdviceRequestResponseDTO;
+import com.backend.backend.dto.AdvisorAssignedClientDTO;
+import com.backend.backend.entities.AdviceRequest;
 import com.backend.backend.entities.User;
 import com.backend.backend.services.AdviceRequestService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,9 +13,22 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDate;
 
 @CrossOrigin(
-        origins = "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app",
+        origins = {
+                // Dev ports usados por distintas herramientas
+                "http://localhost:3001",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                // Vite y Live Server
+                "http://localhost:5173",
+                "http://localhost:5500",
+                "http://127.0.0.1:5500",
+                // Deploys en Vercel conocidos
+                "https://pnc-proyecto-final-frontend-grupo-0-five.vercel.app",
+                "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app"
+        },
         allowedHeaders = "*",
         allowCredentials = "true"
 )
@@ -32,6 +47,21 @@ public class AdviceRequestController {
             return ResponseEntity.ok(report);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // Buscar asesorías con filtros combinables por rango de fechas y nombre de usuario
+    @GetMapping("/search")
+    public ResponseEntity<List<AdviceRequestResponseDTO>> search(
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate,
+            @RequestParam(required = false) String username
+    ) {
+        try {
+            List<AdviceRequestResponseDTO> results = adviceRequestService.listAdviceRequests(startDate, endDate, username);
+            return ResponseEntity.ok(results);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 
@@ -70,12 +100,58 @@ public class AdviceRequestController {
         }
     }
 
-    // Obtener solicitudes aceptadas por el asesor actual
+    // Obtener asignaciones del asesor actual filtradas por estado (por defecto, ACCEPTED)
     @GetMapping("/my-assignments")
-    public ResponseEntity<List<AdviceRequestResponseDTO>> getMyAssignments(@AuthenticationPrincipal User advisor) {
+    public ResponseEntity<List<AdviceRequestResponseDTO>> getMyAssignments(
+            @AuthenticationPrincipal User advisor,
+            @RequestParam(required = false) AdviceRequest.Status status
+    ) {
         try {
-            List<AdviceRequestResponseDTO> requests = adviceRequestService.getAdvisorRequests(advisor.getEmail());
+            // Si no se especifica un estado, devolver TODAS las asesorías asignadas al asesor.
+            // Esto evita que la vista principal aparezca vacía cuando las asesorías no están en estado ACCEPTED.
+            List<AdviceRequestResponseDTO> requests = (status == null)
+                    ? adviceRequestService.getAdvisorRequests(advisor.getEmail())
+                    : adviceRequestService.getAdvisorRequestsByStatus(advisor.getEmail(), status);
             return ResponseEntity.ok(requests);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    // Nueva pestaña: En progreso -> solo solicitudes IN_PROGRESS del asesor autenticado
+    @GetMapping("/in-progress")
+    public ResponseEntity<List<AdviceRequestResponseDTO>> getInProgressAssignments(@AuthenticationPrincipal User advisor) {
+        try {
+            List<AdviceRequestResponseDTO> requests = adviceRequestService.getAdvisorRequestsByStatus(advisor.getEmail(), AdviceRequest.Status.IN_PROGRESS);
+            return ResponseEntity.ok(requests);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    // Nueva pestaña: Completadas -> solo solicitudes COMPLETED del asesor autenticado
+    @GetMapping("/completed")
+    public ResponseEntity<List<AdviceRequestResponseDTO>> getCompletedAssignments(@AuthenticationPrincipal User advisor) {
+        try {
+            List<AdviceRequestResponseDTO> requests = adviceRequestService.getAdvisorRequestsByStatus(advisor.getEmail(), AdviceRequest.Status.COMPLETED);
+            return ResponseEntity.ok(requests);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    // Buscar mis asignaciones (asesor) con filtros por fecha y usuario, sin recargar página
+    @GetMapping("/my-assignments/search")
+    public ResponseEntity<List<AdviceRequestResponseDTO>> searchMyAssignments(
+            @AuthenticationPrincipal User advisor,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate,
+            @RequestParam(required = false) String username
+    ) {
+        try {
+            List<AdviceRequestResponseDTO> results = adviceRequestService
+                    .listAdvisorAssignments(advisor, startDate, endDate, username);
+            return ResponseEntity.ok(results);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
@@ -155,4 +231,36 @@ public class AdviceRequestController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
-} 
+
+    // Actualizar solo la categoría de una asesoría (pensado para el asesor)
+    @PutMapping("/{id}/category")
+    public ResponseEntity<?> updateCategory(
+            @PathVariable String id,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal User advisor
+    ) {
+        try {
+            String categoryId = body != null ? body.get("categoryId") : null;
+
+            AdviceRequestResponseDTO updated = adviceRequestService.updateCategory(id, categoryId, advisor);
+
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // Listado de clientes asignados históricamente al asesor (únicos, cualquier estado)
+    @GetMapping("/my-assigned-clients")
+    public ResponseEntity<?> getMyAssignedClients(@AuthenticationPrincipal User advisor) {
+        try {
+            if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
+                return ResponseEntity.status(403).body(Map.of("error", "Solo asesores"));
+            }
+            List<AdvisorAssignedClientDTO> clients = adviceRequestService.getAssignedClients(advisor);
+            return ResponseEntity.ok(clients);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+}

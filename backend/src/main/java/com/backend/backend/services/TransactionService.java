@@ -7,6 +7,7 @@ import com.backend.backend.entities.Category;
 import com.backend.backend.entities.Transaction;
 import com.backend.backend.entities.User;
 import com.backend.backend.repositories.AdviceCommentRepository;
+import com.backend.backend.repositories.AdviceRequestRepository;
 import com.backend.backend.repositories.CategoryRepository;
 import com.backend.backend.repositories.TransactionRepository;
 import com.backend.backend.repositories.UserRepository;
@@ -33,6 +34,9 @@ public class TransactionService {
     @Autowired
     private AdviceCommentRepository adviceCommentRepository;
 
+    @Autowired
+    private AdviceRequestRepository adviceRequestRepository;
+
     public void createTransaction(TransactionDTO dto, String email) {
         User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
         Category category = categoryRepository.findById(dto.getCategoryId()).orElseThrow();
@@ -53,6 +57,118 @@ public class TransactionService {
     public List<Transaction> getUserTransactions(String email) {
         User user = userRepository.findByEmailIgnoreCase(email).orElseThrow();
         return transactionRepository.findByUserId(user.getId());
+    }
+
+    // Eliminado: funcionalidad de gráficos para el advisor
+
+    // Pie chart de transacciones públicas (todas las cuentas), agrupadas por categoría y sumando montos.
+    // Si startDate y endDate son nulos, devuelve TODO el historial desde el comienzo.
+    public Map<String, Object> getPublicTransactionsPie(LocalDate startDate, LocalDate endDate) {
+        List<Transaction> source;
+
+        if (startDate == null && endDate == null) {
+            // Todo el historial
+            source = transactionRepository.findByIsPublicTrue();
+        } else {
+            // Normalizar rangos parciales
+            LocalDate start = (startDate != null) ? startDate : LocalDate.of(1900, 1, 1);
+            LocalDate end = (endDate != null) ? endDate : LocalDate.now();
+            if (end.isBefore(start)) {
+                LocalDate tmp = start;
+                start = end;
+                end = tmp;
+            }
+            source = transactionRepository.findByIsPublicTrueAndDateBetween(start, end);
+        }
+
+        // Agrupar por categoría y sumar montos (incluye ingresos y gastos tal cual están)
+        Map<String, Double> distribution = new LinkedHashMap<>();
+        for (Transaction t : source) {
+            String categoryName = (t.getCategory() != null && t.getCategory().getName() != null && !t.getCategory().getName().isEmpty())
+                    ? t.getCategory().getName()
+                    : "Sin categoría";
+            distribution.put(categoryName, distribution.getOrDefault(categoryName, 0.0) + t.getAmount());
+        }
+
+        double total = source.stream().mapToDouble(Transaction::getAmount).sum();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("total", BigDecimal.valueOf(total).setScale(2, RoundingMode.HALF_UP).doubleValue());
+        result.put("items", source.size());
+        result.put("distributionByCategory", distribution);
+        return result;
+    }
+
+    // Distribución por categoría de transacciones públicas de un cliente específico (para asesores)
+    // Si no se envían fechas, devuelve el historial completo público del cliente.
+    public Map<String, Object> getPublicByClientCategory(User advisor, String clientUserId, LocalDate startDate, LocalDate endDate) {
+        if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
+            throw new RuntimeException("Solo asesores pueden acceder a esta información");
+        }
+
+        User client = userRepository.findById(clientUserId)
+                .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
+
+        // Validar que el cliente esté asignado al asesor en al menos una solicitud (histórica o actual)
+        boolean assigned = adviceRequestRepository.findByAdvisor(advisor)
+                .stream().anyMatch(ar -> ar.getUser() != null && ar.getUser().getId().equals(client.getId()));
+        if (!assigned) {
+            throw new RuntimeException("El cliente no está asignado al asesor");
+        }
+
+        List<Transaction> source;
+        if (startDate == null && endDate == null) {
+            source = transactionRepository.findByUserAndIsPublicTrue(client);
+        } else {
+            LocalDate start = (startDate != null) ? startDate : LocalDate.of(1900, 1, 1);
+            LocalDate end = (endDate != null) ? endDate : LocalDate.now();
+            if (end.isBefore(start)) {
+                LocalDate tmp = start;
+                start = end;
+                end = tmp;
+            }
+            source = transactionRepository.findByUserAndIsPublicTrueAndDateBetween(client, start, end);
+        }
+
+        Map<String, Double> distribution = new LinkedHashMap<>();
+        for (Transaction t : source) {
+            String categoryName = (t.getCategory() != null && t.getCategory().getName() != null && !t.getCategory().getName().isEmpty())
+                    ? t.getCategory().getName()
+                    : "Sin categoría";
+            distribution.put(categoryName, distribution.getOrDefault(categoryName, 0.0) + t.getAmount());
+        }
+
+        double total = source.stream().mapToDouble(Transaction::getAmount).sum();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("total", BigDecimal.valueOf(total).setScale(2, RoundingMode.HALF_UP).doubleValue());
+        result.put("items", source.size());
+        result.put("distributionByCategory", distribution);
+        result.put("categories", new ArrayList<>(distribution.keySet()));
+        result.put("data", new ArrayList<>(distribution.values()));
+        return result;
+    }
+
+    // Dataset por defecto: devolver todas las categorías existentes con valores en 0
+    public Map<String, Object> getDefaultZeroByCategory() {
+        List<Category> categories = categoryRepository.findAll();
+
+        List<String> names = new ArrayList<>();
+        List<Double> zeros = new ArrayList<>();
+
+        for (Category c : categories) {
+            String name = (c != null && c.getName() != null && !c.getName().isBlank()) ? c.getName() : "Sin categoría";
+            names.add(name);
+            zeros.add(0.0);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("categories", names);
+        result.put("data", zeros);
+        result.put("total", 0.0);
+        result.put("items", 0);
+        result.put("distributionByCategory", new LinkedHashMap<>());
+        return result;
     }
 
     // Devuelve las ultimas 5 transacciones del usuario
