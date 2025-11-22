@@ -50,10 +50,17 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         // Agrega TODOS los orígenes que realmente usas en dev y prod
         config.setAllowedOrigins(List.of(
+                // Dev ports usados por distintas herramientas
                 "http://localhost:3001",
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
-                "https://pnc-proyecto-final-frontend-grupo-0-five.vercel.app"
+                // Vite y Live Server (según anotaciones en controladores)
+                "http://localhost:5173",
+                "http://localhost:5500",
+                "http://127.0.0.1:5500",
+                // Deploys en Vercel conocidos
+                "https://pnc-proyecto-final-frontend-grupo-0-five.vercel.app",
+                "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app"
         ));
         config.setAllowedMethods(Arrays.asList("GET","POST","PUT","DELETE","OPTIONS","PATCH"));
         config.setAllowedHeaders(Arrays.asList("*"));

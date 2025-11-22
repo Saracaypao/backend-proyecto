@@ -1,9 +1,11 @@
 package com.backend.backend.controllers;
 
 import com.backend.backend.dto.UserRegisterDTO;
+import com.backend.backend.dto.AdviceHistoryItemDTO;
 import com.backend.backend.entities.User;
 import com.backend.backend.services.TransactionService;
 import com.backend.backend.services.UserService;
+import com.backend.backend.services.AdviceRequestService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -18,9 +20,16 @@ import java.util.regex.Pattern;
 
 @CrossOrigin(
         origins = {
+                // Dev ports usados por distintas herramientas
+                "http://localhost:3001",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                // Vite y Live Server
+                "http://localhost:5173",
                 "http://localhost:5500",
                 "http://127.0.0.1:5500",
-                "http://localhost:5173",
+                // Deploys en Vercel conocidos
+                "https://pnc-proyecto-final-frontend-grupo-0-five.vercel.app",
                 "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app"
         },
         allowedHeaders = "*",
@@ -32,6 +41,7 @@ public class UserController {
 
     private final UserService userService;
     private final TransactionService transactionService;
+    private final AdviceRequestService adviceRequestService;  // para traer el historial de asesorías
 
     @Value("${app.internal.admin-secret}")
     private String internalAdminSecret;
@@ -41,9 +51,10 @@ public class UserController {
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
     );
 
-    public UserController(UserService userService, TransactionService transactionService) {
+    public UserController(UserService userService, TransactionService transactionService, AdviceRequestService adviceRequestService) {
         this.userService = userService;
         this.transactionService = transactionService;
+        this.adviceRequestService = adviceRequestService;
     }
 
 
@@ -132,6 +143,32 @@ public class UserController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", "Internal server error"));
+        }
+    }
+
+    // Epica 6 Historia 5
+    // Desde el perfil de cada usuario: ver su historial de asesorías
+    // Lista cronológica (lo mas nuevo primero) con fecha, tipo (categoria) y descripción
+    @GetMapping("/{userId}/advice-history")
+    public ResponseEntity<?> verHistorialDeAsesorias(
+            @PathVariable String userId,
+            @AuthenticationPrincipal User advisor
+    ) {
+        try {
+            // Solo los asesores pueden consultar historial de asesorías de usuarios
+            if (advisor == null || advisor.getRole() != User.Role.ADVISOR) {
+                return ResponseEntity.status(403).body(Map.of(
+                        "error", "Solo asesores pueden ver el historial de asesorías"
+                ));
+            }
+            var historial = adviceRequestService.getHistorialDeAsesoriasDeUsuario(userId);
+
+            // Se devuelve la lista para que se vea sin recargar la pagina
+            return ResponseEntity.ok(historial);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage()
+            ));
         }
     }
 

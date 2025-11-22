@@ -25,4 +25,8 @@ public class UserRegisterDTO {
     @NotBlank(message = "La contraseña es requerida")
     @Size(min = 6, max = 100, message = "La contraseña debe tener al menos 6 caracteres")
     private String password;
+
+    // Tipo de cuenta seleccionado en el registro: USER (por defecto) o ADVISOR
+    // No es obligatorio para mantener compatibilidad; si viene vacío se asume USER
+    private String role;
 }

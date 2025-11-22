@@ -24,6 +24,11 @@ public class AdviceRequest {
     @JoinColumn(name = "user_id")
     private User user;
 
+    // categoria general de la asesoría (ahorro, inversión, etc.)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    private Category category;
+
     private String title;
     private String description;
     private LocalDate startDate;
