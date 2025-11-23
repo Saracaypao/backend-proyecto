@@ -60,7 +60,8 @@ public class SecurityConfig {
                 "http://127.0.0.1:5500",
                 // Deploys en Vercel conocidos
                 "https://pnc-proyecto-final-frontend-grupo-0-five.vercel.app",
-                "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app"
+                "https://pnc-proyecto-final-frontend-grupo-0-delta.vercel.app",
+                "https://frontend-proyecto-two.vercel.app"
         ));
         config.setAllowedMethods(Arrays.asList("GET","POST","PUT","DELETE","OPTIONS","PATCH"));
         config.setAllowedHeaders(Arrays.asList("*"));
